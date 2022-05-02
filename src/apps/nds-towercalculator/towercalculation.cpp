@@ -1,32 +1,62 @@
 #include "TowerCalculation.h"
 
-#include "KeyboardReader.h"
-#include "core/SNodeC.h"
+#include <iostream>
+#include <string>
 
-#include <functional> // for function
-#include <iostream>   // for operator<<, endl, basic_ostream, basic_ostream<>::__ostream_type, cout, ostream
+TowerCalculator::TowerCalculator()
+    : core::EventReceiver("TowerCalculation")
+    , currentValue(0)
+    , state(State::WAITING) {
+}
 
-int main(int argc, char* argv[]) {
-    core::SNodeC::init(argc, argv);
+void TowerCalculator::dispatch([[maybe_unused]] const utils::Timeval& currentTime) {
+    switch (state) {
+        case State::MULTIPLY:
+            if (multiplicator <= 9) {
+                std::cout << currentValue << " * " << multiplicator << " = ";
+                currentValue = currentValue * multiplicator;
+                std::cout << currentValue << std::endl;
+                multiplicator++;
+            } else {
+                state = State::DIVIDE;
+            }
+            publish();
+            break;
+        case State::DIVIDE:
+            if (divisor <= 9) {
+                std::cout << currentValue << " / " << divisor << " = ";
+                currentValue = currentValue / divisor;
+                std::cout << currentValue << std::endl;
+                divisor++;
+            } else {
+                state = State::WAITING;
+            }
+            publish();
+            break;
+        case State::WAITING:
+            calculate();
+            break;
+    }
+}
 
-    TowerCalculator towerCalculation;
+void TowerCalculator::calculate(long startValue) {
+    startValues.push_back(startValue);
 
-    towerCalculation.publish();
+    calculate();
+}
 
-    KeyboardReader keyboardReader([&towerCalculation](long value) -> void {
-        std::cout << "In callback: value = " << value << std::endl;
+void TowerCalculator::calculate() {
+    if (!startValues.empty() && state == State::WAITING) {
+        currentValue = startValues.front();
+        startValues.pop_front();
 
-        towerCalculation.calculate(value);
-    });
+        state = State::MULTIPLY;
 
-    towerCalculation.calculate(25);
-    towerCalculation.calculate(50);
-    towerCalculation.calculate(25);
-    towerCalculation.calculate(50);
-    towerCalculation.calculate(25);
-    towerCalculation.calculate(50);
-    towerCalculation.calculate(25);
-    towerCalculation.calculate(50);
+        multiplicator = 1;
+        divisor = 2;
 
-    return core::SNodeC::start();
+        std::cout << std::endl << "start calculation with value = " << currentValue << std::endl;
+
+        publish();
+    }
 }
